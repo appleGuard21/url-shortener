@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+
+  url-shortener-back:
+    image: perv.vas/url-shortener:dev
+    container_name: url-shortener-back
+    restart: always
+    tty: true
+    expose:
+      - 9000
+    volumes:
+      - .:/var/www/url-shortener
+    env_file:
+      - .env
+    networks:
+      - url-shortener-network
+
+  url-shortener-nginx:
+    image: nginx:alpine
+    container_name: url-shortener-nginx
+    restart: always
+    tty: true
+    ports:
+      - "81:80"
+    volumes:
+      - .:/var/www/url-shortener
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - url-shortener-network
+
+  url-shortener-redis:
+    image: redis:latest
+    container_name: url-shortener-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    env_file:
+      - .env
+    volumes:
+      - redisData:/data
+    networks:
+      - url-shortener-network
+
+  url-shortener-beanstalk:
+    image: schickling/beanstalkd:latest
+    container_name: url-shortener-beanstalkd
+    restart: always
+    ports:
+      - "11300:11300"
+    networks:
+      - url-shortener-network
+
+  url-shortener-workers:
+    image: perv.vas/url-shortener:dev
+    container_name: url-shortener-workers
+    restart: always
+    tty: true
+    volumes:
+      - .:/var/www/url-shortener
+      - ./docker/supervisor/supervisord.conf:/etc/supervisor/supervisord.conf
+      - ./docker/supervisor/url-shortener.conf:/etc/supervisor/conf.d/url-shortener.conf
+    env_file:
+      - .env
+    networks:
+      - url-shortener-network
+    entrypoint: "supervisord -c /etc/supervisor/supervisord.conf -n"
+
+networks:
+  url-shortener-network:
+    driver: bridge
+
+volumes:
+  redisData:
+    driver: local
